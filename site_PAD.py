@@ -24,31 +24,24 @@ max_date = df["DateTime"].max().date()
 start_date, end_date = st.sidebar.date_input("Plage de dates", [min_date, max_date])
 df = df[(df["DateTime"].dt.date >= start_date) & (df["DateTime"].dt.date <= end_date)]
 
-# === 🔟 Affichage des dernières données ===
-st.subheader("🔟 Dernières observations météo")
-cols_display = ["DateTime", "Station", "AIR TEMPERATURE", "HUMIDITY", "WIND SPEED", "AIR PRESSURE"]
-if "TIDE HEIGHT" in df.columns:
-    cols_display.append("TIDE HEIGHT")
-if "SURGE" in df.columns:
-    cols_display.append("SURGE")
+# === 📍 Aperçu météo – dernières stations ===
+st.subheader("📍 Aperçu météo – dernières stations")
+for _, row in df.head(3).iterrows():
+    date_heure = pd.to_datetime(row["DateTime"]).strftime("%Y-%m-%d %H:%M:%S")
+    st.markdown(f"""
+    #### 📍 Station {row['Station']}
+    - 🕒 Observation : {date_heure}
+    - 🌡️ Température : {row['AIR TEMPERATURE']}°C {get_weather_icon(float(row['AIR TEMPERATURE']))}
+    - 💧 Humidité : {row['HUMIDITY']}% {"🔴" if float(row['HUMIDITY']) > 98 else "💧"}
+    - 💨 Vent : {row['WIND SPEED']} m/s
+    - 🧭 Pression : {row['AIR PRESSURE']} hPa
+    """)
+    if "TIDE HEIGHT" in row:
+        st.markdown(f"- 🌊 Marée : {row['TIDE HEIGHT']} m")
+    if "SURGE" in row:
+        st.markdown(f"- ⚠️ SURGE : {row['SURGE']} m")
 
-col1, col2 = st.columns([1, 2])
-with col1:
-    st.dataframe(df.head(10)[cols_display])
 
-with col2:
-    for _, row in df.head(3).iterrows():
-        st.markdown(f"""
-        #### 📍 Station {row['Station']}
-        - 🌡️ Température : {row['AIR TEMPERATURE']}°C {get_weather_icon(float(row['AIR TEMPERATURE']))}
-        - 💧 Humidité : {row['HUMIDITY']}% {"🔴" if float(row['HUMIDITY']) > 98 else "💧"}
-        - 💨 Vent : {row['WIND SPEED']} m/s
-        - 🧭 Pression : {row['AIR PRESSURE']} hPa
-        """)
-        if "TIDE HEIGHT" in row:
-            st.markdown(f"- 🌊 Marée : {row['TIDE HEIGHT']} m")
-        if "SURGE" in row:
-            st.markdown(f"- ⚠️ SURGE : {row['SURGE']} m")
 
 # === 🗺️ Carte interactive ===
 st.subheader("🗺️ Carte interactive des stations météo")
@@ -56,6 +49,7 @@ m = folium.Map(location=[4.05, 9.68], zoom_start=10)
 for _, row in df.groupby("Station").first().reset_index().iterrows():
     popup = f"""
     <b>{row['Station']}</b><br>
+    📅 Date : {last_date}<br>
     Temp: {row['AIR TEMPERATURE']} °C<br>
     Vent: {row['WIND SPEED']} m/s<br>
     Humidité: {row['HUMIDITY']} %<br>
