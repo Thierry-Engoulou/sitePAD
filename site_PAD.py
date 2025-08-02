@@ -142,7 +142,7 @@ if admin_password == "SHy@2025":
     for d in demandes_traitees:
         _, nom, structure, email, raison, statut, _, ts = d
         couleur = "🟢" if statut == "acceptée" else "🔴"
-        heure = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts else "Inconnu"
+        heure = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts and pd.notna(ts) else "Inconnu"
         st.sidebar.markdown(f"""
         {couleur} **{nom}**  
         📧 {email}  
@@ -154,7 +154,7 @@ if admin_password == "SHy@2025":
     export_data = cursor.fetchall()
     df_export = pd.DataFrame(export_data, columns=["nom", "email", "structure", "raison", "statut", "timestamp"])
     df_export["Horodatage"] = df_export["timestamp"].apply(
-        lambda ts: datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts else "")
+        lambda ts: datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if pd.notna(ts) else "")
     df_export = df_export.drop(columns=["timestamp"])
     st.sidebar.download_button(
         label="📄 Exporter l’historique",
