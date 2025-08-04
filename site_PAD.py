@@ -13,8 +13,11 @@ from branca.element import MacroElement
 from jinja2 import Template
 import math
 
-# Rafraîchissement automatique toutes les 10 secondes
-st.experimental_set_query_params(_=str(time.time()))
+# ✅ set_page_config doit être en tout premier
+st.set_page_config(page_title="Météo Douala", layout="wide")
+
+# ✅ Rafraîchissement automatique toutes les 10 secondes
+st.query_params["refresh"] = str(time.time())
 
 # Connexion à la base SQLite
 conn = sqlite3.connect("demandes.db", check_same_thread=False)
@@ -35,7 +38,6 @@ CREATE TABLE IF NOT EXISTS demandes (
 ''')
 conn.commit()
 
-st.set_page_config(page_title="Météo Douala", layout="wide")
 st.title("📅 Téléchargement de données météo")
 
 # Chargement des données
@@ -51,7 +53,7 @@ df["DateTime"] = pd.to_datetime(df["DateTime"])
 df = df.sort_values("DateTime", ascending=False)
 
 # --- Filtre date ---
-st.sidebar.header("🔇️ Filtrer par date")
+st.sidebar.header("🗕️ Filtrer par date")
 min_date = df["DateTime"].min().date()
 max_date = df["DateTime"].max().date()
 start_date, end_date = st.sidebar.date_input("Plage de dates", [min_date, max_date])
