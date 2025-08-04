@@ -13,6 +13,9 @@ from branca.element import MacroElement
 from jinja2 import Template
 import math
 
+# Rafraîchissement automatique toutes les 10 secondes
+st.experimental_set_query_params(_=str(time.time()))
+
 # Connexion à la base SQLite
 conn = sqlite3.connect("demandes.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -33,30 +36,38 @@ CREATE TABLE IF NOT EXISTS demandes (
 conn.commit()
 
 st.set_page_config(page_title="Météo Douala", layout="wide")
-st.title(" télécharger les données ici 📥")
+st.title("📅 Téléchargement de données météo")
 
-# Chargement données
+# Chargement des données
 API_URL = "https://data-real-time-2.onrender.com/donnees?limit=50000000000"
 data = requests.get(API_URL).json()
 df = pd.DataFrame(data)
+
+if df.empty:
+    st.error("Aucune donnée disponible depuis l'API.")
+    st.stop()
 
 df["DateTime"] = pd.to_datetime(df["DateTime"])
 df = df.sort_values("DateTime", ascending=False)
 
 # --- Filtre date ---
-st.sidebar.header("🗕️ Filtrer par date")
+st.sidebar.header("🔇️ Filtrer par date")
 min_date = df["DateTime"].min().date()
 max_date = df["DateTime"].max().date()
 start_date, end_date = st.sidebar.date_input("Plage de dates", [min_date, max_date])
 df = df[(df["DateTime"].dt.date >= start_date) & (df["DateTime"].dt.date <= end_date)]
 
-# --- Demande utilisateur
-st.subheader("📀 Demande de téléchargement des données météo")
+# --- Demande utilisateur ---
+st.subheader("📀 Demande de téléchargement")
+
+# Récupérer email depuis la session (si rechargement)
+if "user_email" not in st.session_state:
+    st.session_state.user_email = ""
 
 with st.form("form_demande"):
     nom = st.text_input("Votre nom")
     structure = st.text_input("Structure")
-    email = st.text_input("Votre email")
+    email = st.text_input("Votre email", value=st.session_state.user_email)
     raison = st.text_area("Raison de la demande")
     submit = st.form_submit_button("Envoyer la demande")
 
@@ -65,6 +76,7 @@ if submit:
         st.error("Tous les champs sont requis.")
     else:
         demande_id = str(uuid.uuid4())
+        st.session_state.user_email = email  # ✅ Retenir l'email dans la session
         cursor.execute('''
             INSERT INTO demandes (id, nom, structure, email, raison, statut, token, timestamp)
             VALUES (?, ?, ?, ?, ?, 'en attente', NULL, NULL)
@@ -72,44 +84,43 @@ if submit:
         conn.commit()
         st.success("✅ Demande envoyée. En attente de validation par l’administrateur.")
 
-# --- Vérification des droits de téléchargement
-cursor.execute('SELECT * FROM demandes WHERE email = ? AND statut = "acceptée"', (email,))
-row = cursor.fetchone()
-user_demande = None
-if row:
-    _, _, _, _, _, _, _, timestamp = row
-    if timestamp and time.time() - timestamp <= 60:
-        user_demande = row
-    else:
-        cursor.execute("UPDATE demandes SET statut = 'expirée' WHERE email = ?", (email,))
-        conn.commit()
+# --- Téléchargement automatique si demande validée ---
+email_to_check = st.session_state.user_email
+if email_to_check:
+    cursor.execute('SELECT * FROM demandes WHERE email = ? AND statut = "acceptée"', (email_to_check,))
+    row = cursor.fetchone()
+    user_demande = None
+    if row:
+        _, _, _, _, _, _, _, timestamp = row
+        if timestamp and time.time() - timestamp <= 60:
+            user_demande = row
+        else:
+            cursor.execute("UPDATE demandes SET statut = 'expirée' WHERE email = ?", (email_to_check,))
+            conn.commit()
 
-if user_demande:
-    st.success("✅ Votre demande est acceptée. Vous avez 60 secondes pour télécharger.")
-    export_cols = ["Station", "Latitude", "Longitude", "DateTime", "TIDE HEIGHT", "WIND SPEED", "WIND DIR",
-                   "AIR PRESSURE", "AIR TEMPERATURE", "DEWPOINT", "HUMIDITY"]
-    df_export = df[export_cols]
-    csv = df_export.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        label="📅 Télécharger les données météo",
-        data=csv,
-        file_name="MeteoMarinePAD.csv",
-        mime="text/csv"
-    )
-else:
-    if email:
-        cursor.execute('SELECT * FROM demandes WHERE email = ? AND statut = "expirée"', (email,))
+    if user_demande:
+        st.success("✅ Votre demande est acceptée. Vous avez 60 secondes pour télécharger.")
+        export_cols = ["Station", "Latitude", "Longitude", "DateTime", "TIDE HEIGHT", "WIND SPEED", "WIND DIR",
+                       "AIR PRESSURE", "AIR TEMPERATURE", "DEWPOINT", "HUMIDITY"]
+        df_export = df[export_cols]
+        csv = df_export.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📅 Télécharger les données météo",
+            data=csv,
+            file_name="MeteoMarinePAD.csv",
+            mime="text/csv"
+        )
+    else:
+        cursor.execute('SELECT * FROM demandes WHERE email = ? AND statut = "expirée"', (email_to_check,))
         if cursor.fetchone():
             st.warning("⏱️ Le lien a expiré. Veuillez refaire une demande.")
 
-# --- Notification publique si des demandes sont en attente
+# --- Interface admin ---
 cursor.execute("SELECT COUNT(*) FROM demandes WHERE statut = 'en attente'")
 nb_attente = cursor.fetchone()[0]
-
 if nb_attente > 0:
     st.sidebar.warning(f"📬 {nb_attente} demande(s) en attente de validation.")
 
-# --- Interface admin
 st.sidebar.header("🔐 Admin")
 admin_password = st.sidebar.text_input("Mot de passe admin", type="password")
 
