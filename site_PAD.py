@@ -16,17 +16,22 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# ✅ set_page_config en tout premier
+# ✅ Configuration de la page
 st.set_page_config(page_title="Météo Douala", layout="wide")
 
-# ✅ Rafraîchissement toutes les 10 secondes
+# ✅ Rafraîchissement automatique
 st.query_params["refresh"] = str(time.time())
+
+# ✅ Lecture automatique du paramètre email depuis l’URL
+params = st.query_params
+if "email" in params:
+    st.session_state.user_email = params["email"]
 
 # ✅ Connexion SQLite
 conn = sqlite3.connect("demandes.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# ✅ Table demandes
+# ✅ Table des demandes
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS demandes (
     id TEXT PRIMARY KEY,
@@ -41,11 +46,10 @@ CREATE TABLE IF NOT EXISTS demandes (
 ''')
 conn.commit()
 
-# ✅ Fonction envoi email via Gmail
+# ✅ Fonction envoi email
 def envoyer_email(destinataire, sujet, contenu_html):
     expediteur = "engoulouthierry62@gmail.com"
-    mot_de_passe = "tfzy bsaq rlyn tkox"
-  # mot de passe d’application Gmail
+    mot_de_passe = "tfzy bsaq rlyn tkox"  # Mot de passe d'application
     msg = MIMEMultipart("alternative")
     msg["Subject"] = sujet
     msg["From"] = expediteur
@@ -62,6 +66,7 @@ def envoyer_email(destinataire, sujet, contenu_html):
 
 st.title("📅 Téléchargement de données météo")
 
+# ✅ Chargement des données
 API_URL = "https://data-real-time-2.onrender.com/donnees?limit=50000000000"
 data = requests.get(API_URL).json()
 df = pd.DataFrame(data)
@@ -73,14 +78,14 @@ if df.empty:
 df["DateTime"] = pd.to_datetime(df["DateTime"])
 df = df.sort_values("DateTime", ascending=False)
 
-# --- Filtre date ---
+# ✅ Filtrage par date
 st.sidebar.header("🗕️ Filtrer par date")
 min_date = df["DateTime"].min().date()
 max_date = df["DateTime"].max().date()
 start_date, end_date = st.sidebar.date_input("Plage de dates", [min_date, max_date])
 df = df[(df["DateTime"].dt.date >= start_date) & (df["DateTime"].dt.date <= end_date)]
 
-# --- Formulaire utilisateur ---
+# ✅ Formulaire utilisateur
 st.subheader("📀 Demande de téléchargement")
 if "user_email" not in st.session_state:
     st.session_state.user_email = ""
@@ -105,7 +110,7 @@ if submit:
         conn.commit()
         st.success("✅ Demande envoyée. En attente de validation par l’administrateur.")
 
-# --- Vérification auto pour téléchargement ---
+# ✅ Vérification automatique pour téléchargement
 email_to_check = st.session_state.user_email
 if email_to_check:
     cursor.execute('SELECT * FROM demandes WHERE email = ? AND statut = "acceptée"', (email_to_check,))
@@ -136,7 +141,7 @@ if email_to_check:
         if cursor.fetchone():
             st.warning("⏱️ Le lien a expiré. Veuillez refaire une demande.")
 
-# --- Interface admin ---
+# ✅ Interface administrateur
 cursor.execute("SELECT COUNT(*) FROM demandes WHERE statut = 'en attente'")
 nb_attente = cursor.fetchone()[0]
 if nb_attente > 0:
@@ -163,8 +168,8 @@ if admin_password == "SHy@2025":
                            (token, horo, demande_id))
             conn.commit()
 
-            # --- Envoi email de confirmation ---
-            lien_app = "https://sitepad-5.onrender.com/ "  # 🔁 À personnaliser
+            # ✅ Envoi de l’email avec lien personnalisé
+            lien_app = f"https://sitepad-5.onrender.com/?email={email}"
             contenu_mail = f"""
             <html><body>
             <p>Bonjour {nom},</p>
@@ -180,6 +185,7 @@ if admin_password == "SHy@2025":
             cursor.execute("UPDATE demandes SET statut='refusée', timestamp=? WHERE id=?", (time.time(), demande_id))
             conn.commit()
             st.sidebar.warning(f"Refusée pour {nom}")
+
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 📊 Historique des décisions")
     cursor.execute("SELECT * FROM demandes WHERE statut IN ('acceptée', 'refusée')")
