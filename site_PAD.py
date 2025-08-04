@@ -118,7 +118,7 @@ if email_to_check:
     user_demande = None
     if row:
         _, _, _, _, _, _, _, timestamp = row
-        if timestamp and time.time() - timestamp <= 60:
+        if timestamp and time.time() - timestamp <= 300:
             user_demande = row
         else:
             cursor.execute("UPDATE demandes SET statut = 'expirée' WHERE email = ?", (email_to_check,))
