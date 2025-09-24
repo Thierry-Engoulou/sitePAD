@@ -48,8 +48,8 @@ conn.commit()
 
 # ✅ Fonction envoi email
 def envoyer_email(destinataire, sujet, contenu_html):
-    expediteur = "engoulouthierry62@gmail.com"
-    mot_de_passe = "tfzybsaqrlyntkox"  # Mot de passe d'application
+    expediteur = "thierrygpt3@gmail.com"
+    mot_de_passe = "teqbomlbqyyplwso"  # Mot de passe d'application
     msg = MIMEMultipart("alternative")
     msg["Subject"] = sujet
     msg["From"] = expediteur
@@ -215,6 +215,7 @@ if admin_password == "SHy@2025":
     )
 elif admin_password != "":
     st.sidebar.error("Mot de passe incorrect.")
+
 
 
 
