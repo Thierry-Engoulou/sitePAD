@@ -67,7 +67,7 @@ def envoyer_email(destinataire, sujet, contenu_html):
 st.title("📅 Téléchargement de données météo")
 
 # ✅ Chargement des données
-API_URL = "https://data-real-time-2.onrender.com/donnees?limit=50000000000"
+API_URL = "https://data-real-time-2.onrender.com/donnees?limit=50000"
 data = requests.get(API_URL).json()
 df = pd.DataFrame(data)
 
@@ -215,6 +215,7 @@ if admin_password == "SHy@2025":
     )
 elif admin_password != "":
     st.sidebar.error("Mot de passe incorrect.")
+
 
 
 
