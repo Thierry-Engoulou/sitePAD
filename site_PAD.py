@@ -14,7 +14,6 @@ import os
 # ==========================================================
 # CONFIGURATION STREAMLIT
 # ==========================================================
-
 st.set_page_config(page_title="Météo Douala", layout="wide")
 st.query_params["refresh"] = str(time.time())
 
@@ -25,7 +24,6 @@ if "email" in params:
 # ==========================================================
 # SQLITE
 # ==========================================================
-
 conn = sqlite3.connect("demandes.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute('''
@@ -45,7 +43,6 @@ conn.commit()
 # ==========================================================
 # FONCTION ENVOI EMAIL
 # ==========================================================
-
 def envoyer_email(destinataire, sujet, contenu_html):
     expediteur = "thierrygpt3@gmail.com"
     mot_de_passe = "teqbomlbqyyplwso"
@@ -66,39 +63,71 @@ def envoyer_email(destinataire, sujet, contenu_html):
 # ==========================================================
 # STREAMLIT UI
 # ==========================================================
-
 st.title("📅 Téléchargement de données météo")
 
 # ==========================================================
 # MONGO CONNECTION
 # ==========================================================
-
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where())
 db = client["meteo_douala"]
 collection = db["donnees_meteo"]
 
 # ==========================================================
-# CHARGEMENT DONNEES (LIMIT pour éviter freeze)
+# CHARGEMENT DONNEES COMPLET
 # ==========================================================
+@st.cache_data(ttl=600)
+def charger_toutes_les_donnees(batch_limit=2000, start_date=None, end_date=None):
+    all_data = []
+    offset = 0
 
-def charger_donnees_mongo(limit=50000, start_date=None, end_date=None):
+    progress = st.progress(0)
+    status = st.empty()
+
     query = {}
     if start_date and end_date:
         query["DateTime"] = {"$gte": start_date, "$lte": end_date}
 
-    cursor_mongo = collection.find(query).sort("DateTime", -1).limit(limit)
-    df = pd.DataFrame(list(cursor_mongo))
-    if not df.empty:
+    while True:
+        cursor_mongo = collection.find(query).sort("DateTime", -1).skip(offset).limit(batch_limit)
+        data = list(cursor_mongo)
+        if not data:
+            break
+        all_data.extend(data)
+        offset += batch_limit
+
+        status.text(f"📥 {len(all_data)} lignes téléchargées...")
+        progress.progress(min(len(all_data)/100000,1.0))
+
+    progress.empty()
+    status.empty()
+
+    if not all_data:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(all_data)
+
+    # Nettoyage NaN
+    numeric_cols = ["TIDE HEIGHT","WIND SPEED","WIND DIR","AIR PRESSURE","AIR TEMPERATURE","DEWPOINT","HUMIDITY"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    bool_cols = ["TIDE_HIGH","TIDE_LOW"]
+    for col in bool_cols:
+        if col in df.columns:
+            df[col] = df[col].replace({False: pd.NA, True: 1})
+
+    if "DateTime" in df.columns:
         df["DateTime"] = pd.to_datetime(df["DateTime"])
+
     return df
 
 # ==========================================================
 # FILTRAGE PAR DATE
 # ==========================================================
-
 st.sidebar.header("🗕️ Filtrer par date")
-df_temp = charger_donnees_mongo(limit=1)
+df_temp = charger_toutes_les_donnees(batch_limit=1)
 if not df_temp.empty:
     min_date = df_temp["DateTime"].min().date()
     max_date = df_temp["DateTime"].max().date()
@@ -110,7 +139,6 @@ start_date, end_date = st.sidebar.date_input("Plage de dates", [min_date, max_da
 # ==========================================================
 # FORMULAIRE DEMANDE
 # ==========================================================
-
 st.subheader("📀 Demande de téléchargement")
 if "user_email" not in st.session_state:
     st.session_state.user_email = ""
@@ -138,7 +166,6 @@ if submit:
 # ==========================================================
 # VERIFICATION POUR TELECHARGEMENT
 # ==========================================================
-
 email_to_check = st.session_state.user_email
 if email_to_check:
     cursor.execute('SELECT * FROM demandes WHERE email = ? AND statut = "acceptée"', (email_to_check,))
@@ -154,9 +181,11 @@ if email_to_check:
 
     if user_demande:
         st.success("✅ Votre demande est acceptée. Vous avez 60 secondes pour télécharger.")
-        df = charger_donnees_mongo(limit=50000,
-                                   start_date=datetime.combine(start_date, datetime.min.time()),
-                                   end_date=datetime.combine(end_date, datetime.max.time()))
+        df = charger_toutes_les_donnees(
+            start_date=datetime.combine(start_date, datetime.min.time()),
+            end_date=datetime.combine(end_date, datetime.max.time())
+        )
+
         export_cols = ["Station", "Latitude", "Longitude", "DateTime", "TIDE HEIGHT", "WIND SPEED", "WIND DIR",
                        "AIR PRESSURE", "AIR TEMPERATURE", "DEWPOINT", "HUMIDITY"]
         df_export = df[export_cols] if not df.empty else pd.DataFrame(columns=export_cols)
@@ -175,7 +204,6 @@ if email_to_check:
 # ==========================================================
 # INTERFACE ADMIN
 # ==========================================================
-
 cursor.execute("SELECT COUNT(*) FROM demandes WHERE statut = 'en attente'")
 nb_attente = cursor.fetchone()[0]
 if nb_attente > 0:
