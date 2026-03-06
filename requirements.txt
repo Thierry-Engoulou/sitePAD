@@ -2,7 +2,9 @@ uvicorn
 streamlit==1.45.1
 pandas
 requests
+pip install pymongo certifi
 plotly
 folium
 streamlit-folium
 gunicorn
+
