@@ -1,16 +1,16 @@
 # Core
-streamlit==1.25.0
-numpy==1.26.5
-pandas==2.0.3
+streamlit==1.27.0
+numpy==1.26.2
+pandas==2.1.1
 scipy==1.11.1
 
-# HTTP requests
+# HTTP requests / environment
 requests==2.31.0
 python-dotenv==1.0.1
 certifi==2026.3.3
 
-# Plotting / visualization
-plotly==5.17.0
+# Visualization
+plotly==5.15.0
 folium==0.14.0
 streamlit-folium==0.11.0
 
