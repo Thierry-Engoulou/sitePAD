@@ -4,7 +4,7 @@ import requests
 import os
 import plotly.express as px
 
-API_URL = "https://data-real-time-6.onrender.com/donnees"
+API_URL = "https://data-real-time-2.onrender.com/donnees"
 CACHE_FILE = "data_cache.parquet"
 
 st.title("🌦 Dashboard météo temps réel")
